@@ -1,206 +1,44 @@
 import serial
 import serial.tools.list_ports
 import time
-from config import SERIAL_TIMEOUT
-import struct
+from config import *
 
-# 定义帧头、帧尾
-FRAME_HEADER = 0x7E
-FRAME_TAIL = 0x7E
-# 定义命令代码
-CMD_WRITE_SN = 0xA0     #设置指令
-CMD_QUERY_AGING_RECORD = 0xA2
-CMD_CHECK_PASS = 0xA3
 
-class SerialCommunicator:
-    """串口通信管理器"""
-
-    def __init__(self):
-        self.serial_obj = None
-        self.is_connected = False
-        self.current_ports = []
-
-    def get_available_ports(self):
-        """获取可用串口列表"""
-        try:
-            ports = serial.tools.list_ports.comports()
-            port_list = [port.device for port in ports]
-            if not port_list:
-                port_list = ["无可用串口"]
-            self.current_ports = port_list
-            return port_list
-        except Exception as e:
-            raise Exception(f"获取串口列表失败: {str(e)}")
-
-    def _get_parity_code(self, parity_text):
-        """将校验位文本转换为serial库对应的代码"""
-        parity_map = {
-            "无校验": serial.PARITY_NONE,
-            "奇校验": serial.PARITY_ODD,
-            "偶校验": serial.PARITY_EVEN
-        }
-        return parity_map.get(parity_text, serial.PARITY_NONE)
-
-    def _get_stop_bits(self, stop_bits_text):
-        """将停止位文本转换为serial库对应的代码"""
-        stop_bits_map = {
-            "1": serial.STOPBITS_ONE,
-            "1.5": serial.STOPBITS_ONE_POINT_FIVE,
-            "2": serial.STOPBITS_TWO
-        }
-        return stop_bits_map.get(stop_bits_text, serial.STOPBITS_ONE)
-
-    def open_serial(self, port, baudrate, data_bits, stop_bits, parity):
-        try:
-            # 关闭已打开的串口
-            if self.serial_obj and self.serial_obj.is_open:
-                self.serial_obj.close()
-            # 配置并打开串口，根据协议设置默认参数
-            self.serial_obj = serial.Serial(
-                port=port,
-                baudrate=9600,  # 协议规定波特率为9600Bps
-                bytesize=8,  # 协议规定数据位为8
-                parity=serial.PARITY_NONE,  # 协议规定奇偶校验位为无
-                stopbits=serial.STOPBITS_ONE,  # 协议规定停止位为1
-                timeout=SERIAL_TIMEOUT
-            )
-            self.is_connected = self.serial_obj.is_open
-            return self.is_connected
-        except Exception as e:
-            raise Exception(f"打开串口失败: {str(e)}")
-
-    def close_serial(self):
-        """关闭串口"""
-        try:
-            if self.serial_obj and self.serial_obj.is_open:
-                self.serial_obj.close()
-            self.is_connected = False
-        except Exception as e:
-            raise Exception(f"关闭串口失败: {str(e)}")
-
-    # serial_comm.py
-    def send_command(self, command):
-        if not self.is_connected or not self.serial_obj:
-            raise Exception("串口未连接")
-        try:
-            # 构建数据帧
-            data = bytearray()
-            data.append(FRAME_HEADER)
-            # 根据不同命令设置命令代码
-            if command.startswith("QUERY,MES,SN="):
-                data.append(CMD_QUERY_AGING_RECORD)
-            elif command.startswith("PASS,MES,SN="):
-                data.append(CMD_CHECK_PASS)
-            # 假设从机地址固定为1（需根据实际情况修改）
-            data.append(1)
-            command_data = command.split(',')[2].encode('utf-8')
-            escaped_command_data = escape_data(command_data)
-            data.extend(escaped_command_data)
-            crc = calculate_crc16(data[1:])
-            data.append(crc >> 8)
-            data.append(crc & 0xFF)
-            data.append(FRAME_TAIL)
-
-            # 发送命令
-            self.serial_obj.write(data)
-            # 等待并接收响应
-            response = b""
-            start_time = time.time()
-            while time.time() - start_time < SERIAL_TIMEOUT:
-                if self.serial_obj.in_waiting:
-                    response += self.serial_obj.read(self.serial_obj.in_waiting)
-                    # 假设响应以帧尾结尾
-                    if response.endswith(bytes([FRAME_TAIL])):
-                        break
-                time.sleep(0.1)
-            if not response:
-                raise Exception("未收到响应，操作超时")
-            # 解析响应
-            response = response[1:-3]  # 去除帧头、CRC校验和帧尾
-            unescaped_response = unescape_data(response)
-            received_crc = (response[-2] << 8) + response[-1]
-            calculated_crc = calculate_crc16(response[:-2])
-            if received_crc != calculated_crc:
-                raise Exception("CRC校验失败")
-            return unescaped_response.decode('utf-8').strip()
-        except Exception as e:
-            raise Exception(f"串口通信失败: {str(e)}")
-
-    # mes_client.py
-    def query_aging_record(self, sn):
-        if not sn:
-            raise ValueError("SN码不能为空")
-        if not self.serial_comm.is_connected:
-            raise ConnectionError("串口未连接，请先打开串口")
-        # 构建查询指令
-        query_cmd = f"QUERY,MES,SN={sn}"
-        # 发送查询指令并获取响应
-        response = self.serial_comm.send_command(query_cmd)
-        # 解析响应
-        return self._parse_query_response(response, sn)
-
-    def perform_check_pass(self, sn):
-        if not sn:
-            raise ValueError("SN码不能为空")
-        if not self.serial_comm.is_connected:
-            raise ConnectionError("串口未连接，请先打开串口")
-        # 构建过站指令
-        pass_cmd = f"PASS,MES,SN={sn}"
-        # 发送过站指令并获取响应
-        response = self.serial_comm.send_command(pass_cmd)
-        # 解析响应
-        if "SUCCESS" in response:
-            return True, "检号过站成功"
-        else:
-            return False, f"过站失败: {response}"
-
-    def _parse_query_response(self, response, sn):
-        details = "产品老化检测记录:\n"
-        details += f"SN码: {sn}\n"
-        details += f"查询时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        # 从响应中提取信息（根据实际协议修改）
-        if "AGE=" in response:
-            age_match = re.search(r"AGE=(\d+)", response)
-            if age_match:
-                details += f"老化时间: {age_match.group(1)} 小时\n"
-        if "TEMP=" in response:
-            temp_match = re.search(r"TEMP=(\d+\.\d+)", response)
-            if temp_match:
-                details += f"老化温度: {temp_match.group(1)} ℃\n"
-        if "RESULT=" in response:
-            result_match = re.search(r"RESULT=(.*?)(,|$)", response)
-            if result_match:
-                details += f"检测结果: {result_match.group(1)}\n"
-        # 确定查询结果状态
-        if "PASS" in response:
-            return "检测合格", details
-        elif "FAIL" in response:
-            return "检测不合格", details
-        else:
-            return "记录未找到", "未在MES系统中找到该SN的老化检测记录"
 def escape_data(data):
-    escaped_data = bytearray()
+    """数据转义处理"""
+    escaped = bytearray()
     for byte in data:
-        if byte == FRAME_HEADER or byte == FRAME_TAIL or byte == 0x7D:
-            escaped_data.append(0x7D)
-            byte ^= 0x20
-        escaped_data.append(byte)
-    return escaped_data
-def unescape_data(data):
-    unescaped_data = bytearray()
+        if byte == FRAME_HEADER:
+            escaped.extend([0x7D, 0x5E])
+        elif byte == 0x7D:
+            escaped.extend([0x7D, 0x5D])
+        else:
+            escaped.append(byte)
+    return escaped
+
+
+def unescape_data(escaped_data):
+    """数据还原处理"""
+    data = bytearray()
     i = 0
-    while i < len(data):
-        byte = data[i]
-        if byte == 0x7D:
+    while i < len(escaped_data):
+        if escaped_data[i] == 0x7D and i + 1 < len(escaped_data):
+            if escaped_data[i + 1] == 0x5E:
+                data.append(FRAME_HEADER)
+            elif escaped_data[i + 1] == 0x5D:
+                data.append(0x7D)
+            i += 2
+        else:
+            data.append(escaped_data[i])
             i += 1
-            byte = data[i] ^ 0x20
-        unescaped_data.append(byte)
-        i += 1
-    return unescaped_data
+    return data
+
+
 def calculate_crc16(data):
-    crc = 0xFFFF
+    """CRC16_CCITT计算（协议标准）"""
+    crc = 0
     for byte in data:
-        crc ^= byte << 8
+        crc ^= (byte << 8)
         for _ in range(8):
             if crc & 0x8000:
                 crc = (crc << 1) ^ 0x1021
@@ -208,3 +46,140 @@ def calculate_crc16(data):
                 crc = crc << 1
             crc &= 0xFFFF
     return crc
+
+
+class SerialCommunicator:
+    """串口通信管理器"""
+
+    def __init__(self):
+        self.serial_obj = None
+        self.is_connected = False
+
+    def get_available_ports(self):
+        """获取可用串口列表"""
+        ports = serial.tools.list_ports.comports()
+        return [port.device for port in ports]
+
+    def open_serial(self, port, baudrate):
+        """打开串口"""
+        try:
+            self.serial_obj = serial.Serial(
+                port=port,
+                baudrate=baudrate,
+                timeout=SERIAL_TIMEOUT,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_1,
+                bytesize=serial.EIGHTBITS
+            )
+            self.is_connected = self.serial_obj.is_open
+            return self.is_connected, f"串口 {port} 打开成功"
+        except Exception as e:
+            return False, f"串口打开失败: {str(e)}"
+
+    def close_serial(self):
+        """关闭串口"""
+        if self.serial_obj and self.serial_obj.is_open:
+            self.serial_obj.close()
+        self.is_connected = False
+
+    def send_command(self, data_area):
+        """发送通用命令（原有功能）"""
+        return self._send_and_receive(data_area, None)
+
+    def send_write_code_cmd(self, slave_addr, sn_code):
+        """发送写码指令（0xA0）"""
+        if not (1 <= slave_addr <= 31):
+            raise ValueError(f"从机地址无效（需1-31），当前：{slave_addr}")
+        if not (1 <= len(sn_code) <= 24):
+            raise ValueError(f"SN码长度无效（需1-24字符），当前：{len(sn_code)}")
+
+        # 构建指令数据区
+        data_area = bytearray()
+        data_area.append(WRITE_CODE_CMD)
+        data_area.append(slave_addr)
+        data_area.append(len(sn_code))
+        data_area.extend(sn_code.encode("utf-8"))
+
+        # 发送并接收应答
+        response = self._send_and_receive(data_area, WRITE_CODE_ACK_CMD)
+        return response
+
+    def send_version_query_cmd(self, slave_addr):
+        """发送版本查询指令（0xA2）"""
+        if not (1 <= slave_addr <= 31):
+            raise ValueError(f"从机地址无效（需1-31），当前：{slave_addr}")
+
+        # 构建指令数据区
+        data_area = bytearray()
+        data_area.append(VERSION_QUERY_CMD)
+        data_area.append(slave_addr)
+        data_area.extend([0x00, 0x00])  # 保留字节
+
+        # 发送并接收应答
+        response = self._send_and_receive(data_area, VERSION_ACK_CMD)
+        return response
+
+    def _send_and_receive(self, data_area, expected_ack_cmd):
+        """通用发送-接收逻辑"""
+        if not self.is_connected or not self.serial_obj:
+            raise ConnectionError("串口未连接，请先打开串口")
+
+        try:
+            # 构建完整数据帧
+            escaped_data = escape_data(data_area)
+            crc = calculate_crc16(data_area)
+            crc_high = (crc >> 8) & 0xFF
+            crc_low = crc & 0xFF
+
+            frame = bytearray()
+            frame.append(FRAME_HEADER)
+            frame.extend(escaped_data)
+            frame.append(crc_high)
+            frame.append(crc_low)
+            frame.append(FRAME_TAIL)
+
+            # 发送指令
+            time.sleep(0.03)
+            self.serial_obj.write(frame)
+            self.serial_obj.flush()
+
+            # 接收应答
+            response_frame = b""
+            start_time = time.time()
+            while time.time() - start_time < SERIAL_TIMEOUT:
+                if self.serial_obj.in_waiting:
+                    response_frame += self.serial_obj.read(self.serial_obj.in_waiting)
+                    if response_frame.endswith(bytes([FRAME_TAIL])):
+                        break
+                time.sleep(0.01)
+
+            if not response_frame:
+                raise TimeoutError("未收到从机应答，操作超时")
+            if len(response_frame) < 5:
+                raise ValueError(f"应答帧长度无效：{len(response_frame)}字节")
+
+            # 解析应答帧
+            response_body = response_frame[1:-1]
+            response_data_escaped = response_body[:-2]
+            response_crc_high = response_body[-2]
+            response_crc_low = response_body[-1]
+            received_crc = (response_crc_high << 8) | response_crc_low
+
+            response_data = unescape_data(response_data_escaped)
+            calculated_crc = calculate_crc16(response_data)
+
+            if received_crc != calculated_crc:
+                raise ValueError(f"CRC校验失败（接收：0x{received_crc:04X}，计算：0x{calculated_crc:04X}）")
+
+            # 校验应答命令码（如果指定）
+            if expected_ack_cmd is not None:
+                if len(response_data) < 1:
+                    raise ValueError("应答数据区为空")
+                actual_ack_cmd = response_data[0]
+                if actual_ack_cmd != expected_ack_cmd:
+                    raise ValueError(f"应答命令码不匹配（期望：0x{expected_ack_cmd:02X}，实际：0x{actual_ack_cmd:02X}）")
+
+            return response_data[1:] if expected_ack_cmd else response_data
+
+        except Exception as e:
+            raise Exception(f"串口通信失败：{str(e)}")
