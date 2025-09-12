@@ -18,7 +18,8 @@ WRITE_CODE_ACK_CMD = 0xA1      # 写码应答命令码（从机返回）
 MASTER_ADDRESS = 0xF4          # 写码应答中「主机固定地址」
 WRITE_SUCCESS = 0x00           # 写码成功状态码
 WRITE_FAILED = 0x01            # 写码失败状态码
-
+STOPBITS_1 = 1
+EIGHTBITS = 8
 # 版本查询配置
 VERSION_QUERY_CMD = 0xA2       # 版本查询指令命令码（主机发送）
 VERSION_ACK_CMD = 0xA3         # 版本应答命令码（从机返回）

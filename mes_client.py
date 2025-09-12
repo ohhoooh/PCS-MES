@@ -7,7 +7,6 @@ class MESClient:
 
     def __init__(self, serial_communicator):
         self.serial_comm = serial_communicator
-
     def perform_check_pass(self, sn_code):
         """执行检号过站操作"""
         try:

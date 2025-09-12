@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
+import platform
+import socket
 from config import *
 
 
@@ -26,12 +28,31 @@ class MESQuerySystem:
         self.query_result_var = tk.StringVar()
         self.log_text = None
         self.details_text = None
+        self.network_status_var = tk.StringVar(value="未检测")  # 网络状态变量
+        self.local_ip_var = tk.StringVar(value="获取中...")      # 本地IP显示变量
 
+        # 内网检测配置
+        self.detection_interval = 10  # 检测间隔（秒）
+        self.timeout = 2  # 连接超时时间（秒）
+        # 公司内网IP段配置（根据实际情况修改）
+        self.company_subnets = [
+            "10.10.",  # 公司内网主要网段
+            "192.168.1.",  # 公司内网次要网段
+            "172.16."  # 公司内网其他网段
+        ]
+        # 公司内网特定服务器列表（根据实际情况添加）
+        self.intranet_servers = [
+            (INTRANET_TEST_IP, INTRANET_TEST_PORT),  # 配置文件中的服务器
+            ("10.10.30.1", 80),  # 公司内网网关
+            ("10.10.20.5", 443)  # 公司内部Web服务器
+        ]
+        # 公司内网DNS域名（根据实际情况修改）
+        self.intranet_domains = [
+            "internal.company.com",
+            "mes-server.local"
+        ]
         # 初始化界面
         self.init_ui()
-
-        # 启动网络检测线程
-        self.start_detection_thread()
 
     def init_ui(self):
         """初始化界面组件"""
@@ -72,17 +93,189 @@ class MESQuerySystem:
         self.refresh_btn.grid(row=0, column=6, padx=5, pady=5)
 
     def create_network_frame(self):
-        """创建网络状态区域"""
-        frame_network = ttk.LabelFrame(self.root, text="网络状态")
+        """创建增强的网络状态显示区域（Windows环境）"""
+        frame_network = ttk.LabelFrame(self.root, text="网络状态 (Windows)")
         frame_network.grid(row=1, column=0, padx=10, pady=5, sticky="we")
+        frame_network.grid_columnconfigure(5, weight=1)  # 让最后一列自适应宽度
 
-        self.network_status_var = tk.StringVar(value="未检测")
-        ttk.Label(frame_network, text="服务器连接：").grid(row=0, column=0, padx=5, pady=5)
-        ttk.Label(frame_network, textvariable=self.network_status_var, font=("Arial", 10, "bold")).grid(row=0, column=1,
-                                                                                                        padx=5, pady=5)
+        # 网络状态显示
+        ttk.Label(frame_network, text="内网连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.network_status_label = ttk.Label(
+            frame_network,
+            textvariable=self.network_status_var,
+            font=("Arial", 10, "bold"),
+            foreground="orange"  # 初始为橙色
+        )
+        self.network_status_label.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-        ttk.Label(frame_network, text=f"服务器地址：{INTRANET_TEST_IP}:{INTRANET_TEST_PORT}").grid(row=0, column=2,
-                                                                                                  padx=5, pady=5)
+        # 本地IP地址显示
+        ttk.Label(frame_network, text="本地IP地址：").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        ttk.Label(
+            frame_network,
+            textvariable=self.local_ip_var,
+            font=("Arial", 10)
+        ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
+
+        # 检测控制
+        ttk.Label(frame_network, text="检测间隔：").grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        ttk.Label(frame_network, text=f"{self.detection_interval}秒").grid(row=0, column=5, padx=5, pady=5, sticky="w")
+
+        # 手动检测按钮
+        self.check_network_btn = ttk.Button(
+            frame_network,
+            text="手动检测",
+            command=self.trigger_manual_detection
+        )
+        self.check_network_btn.grid(row=0, column=6, padx=10, pady=5)
+
+    def get_local_ip_addresses(self):
+        """获取Windows系统下的本机IP地址（适配Windows环境）"""
+        ip_addresses = []
+        try:
+            # Windows系统专用的IP获取方式
+            # 创建一个临时socket连接来获取本机IP
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                # 不实际连接，只是为了获取当前网络接口的IP
+                s.connect(("8.8.8.8", 80))
+                primary_ip = s.getsockname()[0]
+                ip_addresses.append(primary_ip)
+
+            # 获取所有网络接口的IP
+            hostname = socket.gethostname()
+            addrs = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            for addr in addrs:
+                ip_addr = addr[4][0]
+                if ip_addr not in ip_addresses and ip_addr != "127.0.0.1":
+                    ip_addresses.append(ip_addr)
+
+        except Exception as e:
+            self.add_log(f"获取本地IP地址出错: {str(e)}")
+
+        # 更新本地IP显示
+        self.root.after(0, lambda: self.local_ip_var.set(", ".join(ip_addresses)))
+        return ip_addresses
+
+    def is_ip_in_company_subnet(self, ip):
+        """检查IP是否属于公司内网网段"""
+        for subnet in self.company_subnets:
+            if ip.startswith(subnet):
+                return True
+        return False
+
+    def check_dns_resolution(self):
+        """检查能否解析公司内网域名"""
+        for domain in self.intranet_domains:
+            try:
+                socket.gethostbyname(domain)
+                return True  # 只要有一个域名能解析就返回True
+            except:
+                continue
+        return False
+
+    def check_server_connectivity(self):
+        """检查能否连接到公司内网服务器（Windows优化版）"""
+        success_count = 0
+        for server in self.intranet_servers:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    # Windows环境下的超时设置优化
+                    s.settimeout(self.timeout)
+                    # 尝试连接服务器
+                    result = s.connect_ex(server)
+                    if result == 0:
+                        success_count += 1
+                        # 连接成功后不必检测所有服务器，提高响应速度
+                        if success_count >= 1:
+                            break
+            except Exception as e:
+                self.add_log(f"连接服务器 {server} 出错: {str(e)}")
+                continue
+
+        return success_count > 0
+
+    def trigger_manual_detection(self):
+        """手动触发一次网络检测"""
+        self.add_log("手动触发网络检测...")
+        # 禁用按钮防止重复点击
+        self.check_network_btn.config(state=tk.DISABLED)
+        # 在新线程中执行检测
+        threading.Thread(target=self._manual_detection, daemon=True).start()
+
+    def _manual_detection(self):
+        """手动检测逻辑实现"""
+        # 执行检测
+        detection_results = self.perform_detection()
+
+        # 更新UI
+        status_text = "正常" if self.is_connected else "断开"
+        self.root.after(0, lambda s=status_text: self.network_status_var.set(s))
+
+        color = "green" if self.is_connected else "red"
+        self.root.after(0, lambda c=color: self.update_status_color(c))
+
+        # 重新启用按钮
+        self.root.after(0, lambda: self.check_network_btn.config(state=tk.NORMAL))
+
+    def perform_detection(self):
+        """执行网络检测并返回结果（提取为独立方法）"""
+        detection_results = {
+            "ip_check": False,
+            "dns_check": False,
+            "server_check": False
+        }
+
+        # 1. 检查本机IP是否属于公司内网网段
+        local_ips = self.get_local_ip_addresses()
+        for ip in local_ips:
+            if self.is_ip_in_company_subnet(ip):
+                detection_results["ip_check"] = True
+                break
+
+        # 2. 检查内网DNS解析
+        detection_results["dns_check"] = self.check_dns_resolution()
+
+        # 3. 检查内网服务器连接
+        detection_results["server_check"] = self.check_server_connectivity()
+
+        # 综合判断：至少满足两项条件才认为连接到公司内网
+        self.is_connected = sum(detection_results.values()) >= 2
+
+        # 记录详细检测结果到日志
+        log_msg = f"内网检测结果 - IP段: {'通过' if detection_results['ip_check'] else '失败'}, "
+        log_msg += f"DNS解析: {'通过' if detection_results['dns_check'] else '失败'}, "
+        log_msg += f"服务器连接: {'通过' if detection_results['server_check'] else '失败'} - "
+        log_msg += f"最终状态: {'已连接' if self.is_connected else '未连接'}"
+        self.add_log(log_msg)
+
+        return detection_results
+
+    def update_status_color(self, color):
+        """更新网络状态显示的颜色"""
+        self.network_status_label.configure(foreground=color)
+
+    def start_detection_thread(self):
+        """启动Windows环境下的内网检测线程"""
+
+        def _detection_loop():
+            """Windows优化版网络检测循环"""
+            while True:
+                # 执行检测
+                self.perform_detection()
+
+                # 更新UI显示
+                status_text = "正常" if self.is_connected else "断开"
+                self.root.after(0, lambda s=status_text: self.network_status_var.set(s))
+
+                # 更新状态颜色
+                color = "green" if self.is_connected else "red"
+                self.root.after(0, lambda c=color: self.update_status_color(c))
+
+                # 等待下一次检测
+                time.sleep(self.detection_interval)
+
+        # 创建并启动后台线程
+        detection_thread = threading.Thread(target=_detection_loop, daemon=True)
+        detection_thread.start()
 
     def create_operation_frame(self):
         """创建整合后的操作区域（共用SN码输入）"""
@@ -221,20 +414,6 @@ class MESQuerySystem:
         self.details_text.delete(1.0, tk.END)
         self.details_text.insert(tk.END, content)
         self.details_text.config(state=tk.DISABLED)
-
-    def start_detection_thread(self):
-        """启动网络检测线程"""
-
-        def _detection_loop():
-            while True:
-                # 模拟网络检测（实际项目中应替换为真实检测逻辑）
-                time.sleep(3)
-                self.is_connected = True  # 这里简化为始终连接成功
-                status = "正常" if self.is_connected else "断开"
-                self.network_status_var.set(status)
-
-        thread = threading.Thread(target=_detection_loop, daemon=True)
-        thread.start()
 
     def perform_check_pass(self):
         """执行检号过站操作"""

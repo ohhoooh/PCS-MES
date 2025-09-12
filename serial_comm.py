@@ -68,8 +68,8 @@ class SerialCommunicator:
                 baudrate=baudrate,
                 timeout=SERIAL_TIMEOUT,
                 parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_1,
-                bytesize=serial.EIGHTBITS
+                stopbits=STOPBITS_1,
+                bytesize=EIGHTBITS
             )
             self.is_connected = self.serial_obj.is_open
             return self.is_connected, f"串口 {port} 打开成功"
