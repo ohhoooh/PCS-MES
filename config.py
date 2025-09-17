@@ -25,3 +25,7 @@ VERSION_QUERY_CMD = 0xA2       # 版本查询指令命令码（主机发送）
 VERSION_ACK_CMD = 0xA3         # 版本应答命令码（从机返回）
 DC_VERSION_LEN = 10            # DC侧版本信息长度
 PFC_VERSION_LEN = 10           # PFC侧版本信息长度
+
+# 新增接口配置
+CHECK_SN_URL = "http://xxx.XX.XXX.XXX:9900/api/DP/dp_write_sn_check"
+EXECUTE_SN_URL = "http://xxx.XX.XXX.XX:9900/api/DP/dp_write_sn_execute"

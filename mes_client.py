@@ -1,4 +1,7 @@
 import datetime
+import requests
+import json
+from config import CHECK_SN_URL, EXECUTE_SN_URL
 from config import *
 
 
@@ -7,6 +10,55 @@ class MESClient:
 
     def __init__(self, serial_communicator):
         self.serial_comm = serial_communicator
+
+    def check_sn_validity(self, sn_code, user_no):
+        """调用1号接口检查SN号是否合法"""
+        data = {"BarCode": sn_code, "UserNo": user_no}
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(CHECK_SN_URL, data=json.dumps(data), headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            if result.get("code") == 0:
+                return True, result.get("message", "SN号检查通过")
+            else:
+                return False, result.get("message", "SN号检查失败")
+        except requests.exceptions.RequestException as e:
+            return False, f"检查SN号时发生网络错误: {str(e)}"
+
+    def upload_result_pass(self, sn_code, user_no):
+        """调用2号接口上传结果过站"""
+        data = {"BarCode": sn_code, "UserNo": user_no}
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(EXECUTE_SN_URL, data=json.dumps(data), headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            if result.get("code") == 0:
+                return True, result.get("message", "过站成功")
+            else:
+                return False, result.get("message", "过站失败")
+        except requests.exceptions.RequestException as e:
+            return False, f"上传过站结果时发生网络错误: {str(e)}"
+
+    def perform_check_burn_and_pass(self, sn_code, user_no, slave_addr):
+        """执行完整的检号、烧录、过站流程"""
+        # 检查SN号
+        check_success, check_msg = self.check_sn_validity(sn_code, user_no)
+        if not check_success:
+            return False, check_msg
+
+        # 烧录
+        burn_success, burn_msg = self.write_sn_code(slave_addr, sn_code)
+        if not burn_success:
+            return False, burn_msg
+
+        # 上传过站结果
+        pass_success, pass_msg = self.upload_result_pass(sn_code, user_no)
+        if not pass_success:
+            return False, pass_msg
+
+        return True, "检号、烧录、过站全部成功"
     def perform_check_pass(self, sn_code):
         """执行检号过站操作"""
         try:
@@ -86,3 +138,4 @@ class MESClient:
 
         except Exception as e:
             return False, f"版本查询异常：{str(e)}"
+

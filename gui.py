@@ -510,3 +510,32 @@ class MESQuerySystem:
                 self.root.after(0, lambda: messagebox.showerror("版本查询失败", version_info))
 
         threading.Thread(target=_thread_func, daemon=True).start()
+def perform_check_pass(self):
+    """执行检号过站操作"""
+    sn_code = self.sn_var.get().strip()
+    user_no = "1001"  # 假设从其他地方获取员工号，这里先写死一个示例值
+    slave_addr_str = self.slave_addr_var.get().strip()
+    if not sn_code:
+        messagebox.showwarning("警告", "请输入SN码")
+        return
+    if not slave_addr_str.isdigit():
+        messagebox.showwarning("警告", "从机地址必须是数字（1-31）")
+        return
+    slave_addr = int(slave_addr_str)
+    if not (1 <= slave_addr <= 31):
+        messagebox.showwarning("警告", "从机地址必须在1-31之间")
+        return
+    self.pass_btn.config(state=tk.DISABLED)
+    self.add_log(f"开始执行检号过站，SN：{sn_code}")
+    self.query_result_var.set("处理中...")
+
+    def _thread_func():
+        success, msg = self.mes_client.perform_check_burn_and_pass(sn_code, user_no, slave_addr)
+        self.root.after(0, lambda: self.query_result_var.set("成功" if success else "失败"))
+        self.root.after(0, lambda: self.add_log(f"检号过站结果：{msg}"))
+        self.root.after(0, lambda: self.pass_btn.config(state=tk.NORMAL))
+        self.root.after(0, lambda: self.update_details(msg))
+        if not success:
+            self.root.after(0, lambda: messagebox.showerror("操作失败", msg))
+
+    threading.Thread(target=_thread_func, daemon=True).start()
