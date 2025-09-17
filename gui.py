@@ -99,7 +99,7 @@ class MESQuerySystem:
         frame_network.grid_columnconfigure(5, weight=1)  # 让最后一列自适应宽度
 
         # 网络状态显示
-        ttk.Label(frame_network, text="内网连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(frame_network, text="网络连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.network_status_label = ttk.Label(
             frame_network,
             textvariable=self.network_status_var,
@@ -123,7 +123,7 @@ class MESQuerySystem:
         # 手动检测按钮
         self.check_network_btn = ttk.Button(
             frame_network,
-            text="手动检测",
+            text="网络检测",
             command=self.trigger_manual_detection
         )
         self.check_network_btn.grid(row=0, column=6, padx=10, pady=5)
