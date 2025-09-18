@@ -41,45 +41,20 @@ class MESClient:
         except requests.exceptions.RequestException as e:
             return False, f"上传过站结果时发生网络错误: {str(e)}"
 
-    def perform_check_burn_and_pass(self, sn_code, user_no, slave_addr):
-        """执行完整的检号、烧录、过站流程"""
-        # 检查SN号
+    def perform_check_pass(self, sn_code, user_no):
+        """仅使用API接口执行检号过站操作（不涉及串口）"""
+        # 1. 检查SN号合法性（调用1号接口）
         check_success, check_msg = self.check_sn_validity(sn_code, user_no)
         if not check_success:
-            return False, check_msg
+            return False, f"SN码（{sn_code}）检号失败"
 
-        # 烧录
-        burn_success, burn_msg = self.write_sn_code(slave_addr, sn_code)
-        if not burn_success:
-            return False, burn_msg
-
-        # 上传过站结果
+        # 2. 执行过站操作（调用2号接口）
         pass_success, pass_msg = self.upload_result_pass(sn_code, user_no)
         if not pass_success:
-            return False, pass_msg
+            return False, f"SN码（{sn_code}）过站失败"
 
-        return True, "检号、烧录、过站全部成功"
-    def perform_check_pass(self, sn_code):
-        """执行检号过站操作"""
-        try:
-            if not sn_code or len(sn_code) > 24:
-                return False, "SN码格式无效（需1-24字符）"
-
-            # 构建过站命令数据区
-            pass_cmd = PASS_CMD_FORMAT.format(sn=sn_code)
-            data_area = pass_cmd.encode('utf-8')
-
-            # 发送命令并获取响应
-            response_data = self.serial_comm.send_command(data_area)
-            response_str = response_data.decode('utf-8', errors='ignore').strip()
-
-            if "SUCCESS" in response_str:
-                return True, f"SN码（{sn_code}）检号过站成功"
-            else:
-                return False, f"检号过站失败：{response_str}"
-
-        except Exception as e:
-            return False, f"检号过站异常：{str(e)}"
+        # 3. 操作成功
+        return True, f"SN码（{sn_code}）检号过站成功：{check_msg} -> {pass_msg}"
 
     def write_sn_code(self, slave_addr, sn_code):
         """执行写码操作"""
@@ -92,8 +67,8 @@ class MESClient:
                 raise ValueError(f"写码应答数据不完整：{len(ack_data)}字节")
 
             ack_master_addr = ack_data[0]
-            if ack_master_addr != MASTER_ADDRESS:
-                raise ValueError(f"应答主机地址不匹配（期望：0x{MASTER_ADDRESS:02X}，实际：0x{ack_master_addr:02X}）")
+            if ack_master_addr != slave_addr:
+                raise ValueError(f"应答主机地址不匹配（期望：0x{slave_addr:02X}，实际：0x{ack_master_addr:02X}）")
 
             status_code = ack_data[1]
             if status_code == WRITE_SUCCESS:

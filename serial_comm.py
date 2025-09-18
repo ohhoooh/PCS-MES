@@ -87,36 +87,51 @@ class SerialCommunicator:
         return self._send_and_receive(data_area, None)
 
     def send_write_code_cmd(self, slave_addr, sn_code):
-        """发送写码指令（0xA0）"""
+        """
+        发送写码指令（0xA0），将SN码直接按两位一组解析为十六进制数
+        若SN码长度为奇数，在最后单独的一位后补充'0'
+        若处理后不足24字节，在后面补0直到达到24字节
+
+        参数:
+            slave_addr: 从机地址（1-31）
+            sn_code: SN码字符串（如"010201009800250400028"）
+        """
         if not (1 <= slave_addr <= 31):
             raise ValueError(f"从机地址无效（需1-31），当前：{slave_addr}")
-        if not (1 <= len(sn_code) <= 24):
-            raise ValueError(f"SN码长度无效（需1-24字符），当前：{len(sn_code)}")
+
+        # 处理SN码：移除空格
+        sn_hex_clean = sn_code.replace(" ", "")  # 清除可能的空格
+
+        # 检查长度，若为奇数则在最后单独的一位后补充'0'
+        if len(sn_hex_clean) % 2 != 0:
+            sn_hex_clean = sn_hex_clean[:-1] + sn_hex_clean[-1] + '0'
+            # 可选：添加日志提示
+            # logging.warning(f"SN码长度为奇数，已在最后一位后补充'0'，处理后为: {sn_hex_clean}")
+
+        try:
+            sn_bytes = bytes.fromhex(sn_hex_clean)  # 直接解析为十六进制字节
+        except ValueError as e:
+            raise ValueError(f"SN码包含无效十六进制字符：{e}")
+
+        # 如果不足24字节，在后面补0直到达到24字节
+        if len(sn_bytes) < 12:
+            padding_length = 12 - len(sn_bytes)
+            sn_bytes += b'\x00' * padding_length
+            # 可选：添加日志提示
+            # logging.info(f"SN码不足24字节，已补充{padding_length}个0，总长度变为24字节")
+
+        # 校验SN码长度是否为24字节
+        if len(sn_bytes) != 12:
+            raise ValueError(f"SN码处理后长度异常，应为24字节，实际为：{len(sn_bytes)}字节")
 
         # 构建指令数据区
         data_area = bytearray()
-        data_area.append(WRITE_CODE_CMD)
-        data_area.append(slave_addr)
-        data_area.append(len(sn_code))
-        data_area.extend(sn_code.encode("utf-8"))
+        data_area.append(WRITE_CODE_CMD)  # 写入指令标识（0xA0）
+        data_area.append(slave_addr)  # 从机地址
+        data_area.append(len(sn_bytes))  # SN码长度（字节数），应为24
+        data_area.extend(sn_bytes)  # 十六进制SN字节数据
 
-        # 发送并接收应答
         response = self._send_and_receive(data_area, WRITE_CODE_ACK_CMD)
-        return response
-
-    def send_version_query_cmd(self, slave_addr):
-        """发送版本查询指令（0xA2）"""
-        if not (1 <= slave_addr <= 31):
-            raise ValueError(f"从机地址无效（需1-31），当前：{slave_addr}")
-
-        # 构建指令数据区
-        data_area = bytearray()
-        data_area.append(VERSION_QUERY_CMD)
-        data_area.append(slave_addr)
-        data_area.extend([0x00, 0x00])  # 保留字节
-
-        # 发送并接收应答
-        response = self._send_and_receive(data_area, VERSION_ACK_CMD)
         return response
 
     def _send_and_receive(self, data_area, expected_ack_cmd):
@@ -137,7 +152,7 @@ class SerialCommunicator:
             frame.append(crc_high)
             frame.append(crc_low)
             frame.append(FRAME_TAIL)
-
+            print("发送帧（十六进制）：", [hex(b) for b in frame])
             # 发送指令
             time.sleep(0.03)
             self.serial_obj.write(frame)
@@ -152,6 +167,7 @@ class SerialCommunicator:
                     if response_frame.endswith(bytes([FRAME_TAIL])):
                         break
                 time.sleep(0.01)
+                print("接收帧（十六进制）：", [hex(b) for b in response_frame])
 
             if not response_frame:
                 raise TimeoutError("未收到从机应答，操作超时")
@@ -167,7 +183,6 @@ class SerialCommunicator:
 
             response_data = unescape_data(response_data_escaped)
             calculated_crc = calculate_crc16(response_data)
-
             if received_crc != calculated_crc:
                 raise ValueError(f"CRC校验失败（接收：0x{received_crc:04X}，计算：0x{calculated_crc:04X}）")
 

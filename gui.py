@@ -415,19 +415,30 @@ class MESQuerySystem:
         self.details_text.insert(tk.END, content)
         self.details_text.config(state=tk.DISABLED)
 
+    # 在gui.py中修改perform_check_pass方法
     def perform_check_pass(self):
-        """执行检号过站操作"""
+        """执行检号过站操作（仅API接口，不使用串口）"""
         sn_code = self.sn_var.get().strip()
+        user_no = "1001"  # 实际应用中应从员工登录信息或输入框获取
+
+        # 验证SN码
         if not sn_code:
             messagebox.showwarning("警告", "请输入SN码")
             return
+        if not (1 <= len(sn_code) <= 24):
+            messagebox.showwarning("警告", "SN码长度必须在1-24字符之间")
+            return
 
+        # 执行操作
         self.pass_btn.config(state=tk.DISABLED)
-        self.add_log(f"开始执行检号过站，SN：{sn_code}")
+        self.add_log(f"开始执行检号过站，SN：{sn_code}，员工号：{user_no}")
         self.query_result_var.set("处理中...")
 
         def _thread_func():
-            success, msg = self.mes_client.perform_check_pass(sn_code)
+            # 调用MES客户端的API接口方法（无串口操作）
+            success, msg = self.mes_client.perform_check_pass(sn_code, user_no)
+
+            # 更新UI
             self.root.after(0, lambda: self.query_result_var.set("成功" if success else "失败"))
             self.root.after(0, lambda: self.add_log(f"检号过站结果：{msg}"))
             self.root.after(0, lambda: self.pass_btn.config(state=tk.NORMAL))
@@ -510,31 +521,36 @@ class MESQuerySystem:
                 self.root.after(0, lambda: messagebox.showerror("版本查询失败", version_info))
 
         threading.Thread(target=_thread_func, daemon=True).start()
+
+
 def perform_check_pass(self):
-    """执行检号过站操作"""
+    """执行检号过站操作（仅API接口，不使用串口）"""
     sn_code = self.sn_var.get().strip()
-    user_no = "1001"  # 假设从其他地方获取员工号，这里先写死一个示例值
-    slave_addr_str = self.slave_addr_var.get().strip()
+    user_no = "1001"  # 实际应用中应从员工登录信息或输入框获取
+
+    # 验证SN码
     if not sn_code:
         messagebox.showwarning("警告", "请输入SN码")
         return
-    if not slave_addr_str.isdigit():
-        messagebox.showwarning("警告", "从机地址必须是数字（1-31）")
+    if not (1 <= len(sn_code) <= 24):
+        messagebox.showwarning("警告", "SN码长度必须在1-24字符之间")
         return
-    slave_addr = int(slave_addr_str)
-    if not (1 <= slave_addr <= 31):
-        messagebox.showwarning("警告", "从机地址必须在1-31之间")
-        return
+
+    # 执行操作
     self.pass_btn.config(state=tk.DISABLED)
-    self.add_log(f"开始执行检号过站，SN：{sn_code}")
+    self.add_log(f"开始执行检号过站，SN：{sn_code}，员工号：{user_no}")
     self.query_result_var.set("处理中...")
 
     def _thread_func():
-        success, msg = self.mes_client.perform_check_burn_and_pass(sn_code, user_no, slave_addr)
+        # 调用MES客户端的API接口方法（无串口操作）
+        success, msg = self.mes_client.perform_check_pass(sn_code, user_no)
+
+        # 更新UI
         self.root.after(0, lambda: self.query_result_var.set("成功" if success else "失败"))
         self.root.after(0, lambda: self.add_log(f"检号过站结果：{msg}"))
         self.root.after(0, lambda: self.pass_btn.config(state=tk.NORMAL))
         self.root.after(0, lambda: self.update_details(msg))
+
         if not success:
             self.root.after(0, lambda: messagebox.showerror("操作失败", msg))
 

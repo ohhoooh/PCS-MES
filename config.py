@@ -5,7 +5,7 @@ INTRANET_TEST_PORT = 80           # 服务器端口
 
 # 串口配置
 DEFAULT_BAUDRATE = "9600"         # 默认波特率
-SERIAL_TIMEOUT = 5                # 串口超时时间（秒）
+SERIAL_TIMEOUT = 10                # 串口超时时间（秒）
 FRAME_HEADER = 0x7E               # 帧头
 FRAME_TAIL = 0x7E                 # 帧尾
 
@@ -27,5 +27,5 @@ DC_VERSION_LEN = 10            # DC侧版本信息长度
 PFC_VERSION_LEN = 10           # PFC侧版本信息长度
 
 # 新增接口配置
-CHECK_SN_URL = "http://xxx.XX.XXX.XXX:9900/api/DP/dp_write_sn_check"
-EXECUTE_SN_URL = "http://xxx.XX.XXX.XX:9900/api/DP/dp_write_sn_execute"
+CHECK_SN_URL = "http://127.0.0.1:4523/m2/7138560-6861712-default/352032584"
+EXECUTE_SN_URL = "http://127.0.0.1:4523/m2/7138560-6861712-default/352071236"
