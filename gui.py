@@ -10,7 +10,7 @@ from config import *
 class MESQuerySystem:
     """MES查询系统主界面"""
 
-    def __init__(self, root, serial_comm, mes_client):
+    def __init__(self, root, serial_comm, mes_client,config_manager):
         self.root = root
         self.root.title("MES-PCS 通信系统")
         self.root.geometry("1000x600")
@@ -51,8 +51,15 @@ class MESQuerySystem:
             "internal.company.com",
             "mes-server.local"
         ]
+        self.config_manager = config_manager
+        self.api_ip_var = tk.StringVar()
+
         # 初始化界面
         self.init_ui()
+        self.load_saved_settings()
+
+        #图标设置
+        root.iconbitmap('test.ico')
 
     def init_ui(self):
         """初始化界面组件"""
@@ -61,6 +68,29 @@ class MESQuerySystem:
         self.create_operation_frame()  # 整合后的操作区域
         self.create_log_frame()
         self.create_details_frame()
+
+    def load_saved_settings(self):
+        """加载所有保存的设置并应用到界面"""
+        try:
+            # 加载保存的API IP
+            saved_api_ip = self.config_manager.get_api_ip()
+            if saved_api_ip:
+                # 更新输入框
+                self.api_ip_var.set(saved_api_ip)
+                # 更新MES客户端
+                self.mes_client.set_api_ip(saved_api_ip)
+                self.add_log(f"已加载保存的API IP: {saved_api_ip}")
+            else:
+                self.add_log("未找到保存的API IP，使用默认值")
+                default_ip = self.config_manager.default_config["api_ip"]
+                self.api_ip_var.set(default_ip)
+                self.mes_client.set_api_ip(default_ip)
+        except Exception as e:
+            self.add_log(f"加载配置时出错: {str(e)}")
+            # 出错时使用默认值
+            default_ip = self.config_manager.default_config["api_ip"]
+            self.api_ip_var.set(default_ip)
+            self.mes_client.set_api_ip(default_ip)
 
     def create_serial_frame(self):
         """创建串口配置区域"""
@@ -96,10 +126,20 @@ class MESQuerySystem:
         """创建增强的网络状态显示区域（Windows环境）"""
         frame_network = ttk.LabelFrame(self.root, text="网络状态 (Windows)")
         frame_network.grid(row=1, column=0, padx=10, pady=5, sticky="we")
-        frame_network.grid_columnconfigure(5, weight=1)  # 让最后一列自适应宽度
+        frame_network.grid_columnconfigure(5, weight=1)
 
         # 网络状态显示
         ttk.Label(frame_network, text="网络连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.api_ip_entry = ttk.Entry(frame_network, textvariable=self.api_ip_var, width=15)
+        self.api_ip_entry.grid(row=0, column=8, padx=5, pady=5, sticky="w")
+
+        # 设置API IP按钮
+        self.set_api_ip_btn = ttk.Button(
+            frame_network,
+            text="设置API IP",
+            command=self.set_api_ip
+        )
+        self.set_api_ip_btn.grid(row=0, column=9, padx=10, pady=5)
         self.network_status_label = ttk.Label(
             frame_network,
             textvariable=self.network_status_var,
@@ -416,23 +456,28 @@ class MESQuerySystem:
         self.details_text.config(state=tk.DISABLED)
 
     def set_api_ip(self):
-        """设置API接口IP地址"""
+        """设置并保存API接口IP地址"""
         api_ip = self.api_ip_var.get().strip()
         if not api_ip:
             messagebox.showwarning("警告", "请输入API接口IP地址")
             return
 
-        # 简单验证IP格式
+        # 验证IP地址格式
         import re
-        ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+        ip_pattern = r'^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)$'
         if not re.match(ip_pattern, api_ip):
-            messagebox.showwarning("警告", "请输入有效的IP地址")
+            messagebox.showwarning("警告", "请输入有效的IP地址（格式如: 192.168.1.1）")
             return
 
-        # 设置MES客户端的API IP
-        self.mes_client.set_api_ip(api_ip)
-        self.add_log(f"已设置API接口IP: {api_ip}")
-        messagebox.showinfo("成功", f"API接口IP已设置为: {api_ip}")
+        # 保存配置
+        if self.config_manager.set_api_ip(api_ip):
+            # 保存成功后更新MES客户端
+            self.mes_client.set_api_ip(api_ip)
+            self.add_log(f"已设置并保存API接口IP: {api_ip}")
+            messagebox.showinfo("成功", f"API接口IP已设置为: {api_ip}\n下次启动将自动使用此IP")
+        else:
+            self.add_log(f"保存API接口IP失败: {api_ip}")
+            messagebox.showwarning("警告", f"保存API接口IP失败，请检查文件权限")
 
     def create_network_frame(self):
         """创建增强的网络状态显示区域（Windows环境）"""
