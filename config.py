@@ -26,6 +26,7 @@ VERSION_ACK_CMD = 0xA3         # 版本应答命令码（从机返回）
 DC_VERSION_LEN = 10            # DC侧版本信息长度
 PFC_VERSION_LEN = 10           # PFC侧版本信息长度
 
-# 新增接口配置
-CHECK_SN_URL = "http://127.0.0.1:4523/m2/7138560-6861712-default/352032584"
-EXECUTE_SN_URL = "http://127.0.0.1:4523/m2/7138560-6861712-default/352071236"
+# 接口配置 只保留路径部分
+CHECK_SN_PATH = "/api/DP/dp_write_sn_check"          #检号接口
+EXECUTE_SN_PATH = "/api/DP/dp_write_sn_execute"      #过站接口
+API_PORT = 9900

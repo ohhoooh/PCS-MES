@@ -415,6 +415,75 @@ class MESQuerySystem:
         self.details_text.insert(tk.END, content)
         self.details_text.config(state=tk.DISABLED)
 
+    def set_api_ip(self):
+        """设置API接口IP地址"""
+        api_ip = self.api_ip_var.get().strip()
+        if not api_ip:
+            messagebox.showwarning("警告", "请输入API接口IP地址")
+            return
+
+        # 简单验证IP格式
+        import re
+        ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+        if not re.match(ip_pattern, api_ip):
+            messagebox.showwarning("警告", "请输入有效的IP地址")
+            return
+
+        # 设置MES客户端的API IP
+        self.mes_client.set_api_ip(api_ip)
+        self.add_log(f"已设置API接口IP: {api_ip}")
+        messagebox.showinfo("成功", f"API接口IP已设置为: {api_ip}")
+
+    def create_network_frame(self):
+        """创建增强的网络状态显示区域（Windows环境）"""
+        frame_network = ttk.LabelFrame(self.root, text="网络状态 (Windows)")
+        frame_network.grid(row=1, column=0, padx=10, pady=5, sticky="we")
+        frame_network.grid_columnconfigure(5, weight=1)  # 让最后一列自适应宽度
+
+        # 添加API接口IP输入框
+        ttk.Label(frame_network, text="API接口IP：").grid(row=0, column=7, padx=5, pady=5, sticky="e")
+        self.api_ip_var = tk.StringVar(value=INTRANET_TEST_IP)  # 使用默认IP
+        self.api_ip_entry = ttk.Entry(frame_network, textvariable=self.api_ip_var, width=15)
+        self.api_ip_entry.grid(row=0, column=8, padx=5, pady=5, sticky="w")
+
+        # 设置API IP按钮
+        self.set_api_ip_btn = ttk.Button(
+            frame_network,
+            text="设置API IP",
+            command=self.set_api_ip
+        )
+        self.set_api_ip_btn.grid(row=0, column=9, padx=10, pady=5)
+
+        # 网络状态显示
+        ttk.Label(frame_network, text="网络连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.network_status_label = ttk.Label(
+            frame_network,
+            textvariable=self.network_status_var,
+            font=("Arial", 10, "bold"),
+            foreground="orange"  # 初始为橙色
+        )
+        self.network_status_label.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+        # 本地IP地址显示
+        ttk.Label(frame_network, text="本地IP地址：").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        ttk.Label(
+            frame_network,
+            textvariable=self.local_ip_var,
+            font=("Arial", 10)
+        ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
+
+        # 检测控制
+        ttk.Label(frame_network, text="检测间隔：").grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        ttk.Label(frame_network, text=f"{self.detection_interval}秒").grid(row=0, column=5, padx=5, pady=5, sticky="w")
+
+        # 手动检测按钮
+        self.check_network_btn = ttk.Button(
+            frame_network,
+            text="网络检测",
+            command=self.trigger_manual_detection
+        )
+        self.check_network_btn.grid(row=0, column=6, padx=10, pady=5)
+
     # 在gui.py中修改perform_check_pass方法
     def perform_check_pass(self):
         """执行检号过站操作（仅API接口，不使用串口）"""

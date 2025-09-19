@@ -1,22 +1,32 @@
 import datetime
 import requests
 import json
-from config import CHECK_SN_URL, EXECUTE_SN_URL
+from config import CHECK_SN_PATH, EXECUTE_SN_PATH, API_PORT
 from config import *
 
 
 class MESClient:
     """MES系统客户端"""
 
-    def __init__(self, serial_communicator):
+    def __init__(self, serial_communicator, api_ip=None):
         self.serial_comm = serial_communicator
+        self.api_ip = api_ip
+
+    def set_api_ip(self, api_ip):
+        """设置API接口IP地址"""
+        self.api_ip = api_ip
 
     def check_sn_validity(self, sn_code, user_no):
         """调用1号接口检查SN号是否合法"""
+        if not self.api_ip:
+            return False, "API接口IP未设置"
+            # 动态生成完整URL
+        check_url = f"http://{self.api_ip}:{API_PORT}{CHECK_SN_PATH}"
+
         data = {"BarCode": sn_code, "UserNo": user_no}
         headers = {"Content-Type": "application/json"}
         try:
-            response = requests.post(CHECK_SN_URL, data=json.dumps(data), headers=headers)
+            response = requests.post(check_url, data=json.dumps(data), headers=headers)
             response.raise_for_status()
             result = response.json()
             if result.get("code") == 0:
@@ -28,10 +38,15 @@ class MESClient:
 
     def upload_result_pass(self, sn_code, user_no):
         """调用2号接口上传结果过站"""
+        if not self.api_ip:
+            return False, "API接口IP未设置"
+        # 动态生成完整URL
+        execute_url = f"http://{self.api_ip}:{API_PORT}{EXECUTE_SN_PATH}"
+
         data = {"BarCode": sn_code, "UserNo": user_no}
         headers = {"Content-Type": "application/json"}
         try:
-            response = requests.post(EXECUTE_SN_URL, data=json.dumps(data), headers=headers)
+            response = requests.post(execute_url, data=json.dumps(data), headers=headers)
             response.raise_for_status()
             result = response.json()
             if result.get("code") == 0:
