@@ -1,3 +1,4 @@
+# 修改mes_client.py文件，在原有基础上添加日志记录功能
 import datetime
 import requests
 import json
@@ -8,53 +9,86 @@ from config import *
 class MESClient:
     """MES系统客户端"""
 
-    def __init__(self, serial_communicator, api_ip=None):
+    def __init__(self, serial_communicator, api_ip=None, logger=None):
         self.serial_comm = serial_communicator
         self.api_ip = api_ip
+        self.logger = logger  # 接收日志记录函数
 
     def set_api_ip(self, api_ip):
         """设置API接口IP地址"""
         self.api_ip = api_ip
 
+    def _log(self, message):
+        """日志记录封装方法"""
+        if self.logger:
+            self.logger(message)
+
     def check_sn_validity(self, sn_code, user_no):
         """调用1号接口检查SN号是否合法"""
         if not self.api_ip:
             return False, "API接口IP未设置"
-            # 动态生成完整URL
-        check_url = f"http://{self.api_ip}:{API_PORT}{CHECK_SN_PATH}"
 
+        # 动态生成完整URL
+        check_url = f"http://{self.api_ip}:{API_PORT}{CHECK_SN_PATH}"
         data = {"BarCode": sn_code, "UserNo": user_no}
         headers = {"Content-Type": "application/json"}
+
+        # 记录发送的JSON请求
+        self._log(f"发送检号请求 - URL: {check_url}")
+        self._log(f"请求数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
         try:
             response = requests.post(check_url, data=json.dumps(data), headers=headers)
             response.raise_for_status()
+
+            # 记录响应数据
+            self._log(f"检号响应状态码: {response.status_code}")
+            self._log(f"响应数据: {json.dumps(response.json(), ensure_ascii=False, indent=2)}")
+
             result = response.json()
-            if result.get("code") == 0:
+            if result.get("code") == "0":
                 return True, result.get("message", "SN号检查通过")
             else:
                 return False, result.get("message", "SN号检查失败")
         except requests.exceptions.RequestException as e:
-            return False, f"检查SN号时发生网络错误: {str(e)}"
+            error_msg = f"检查SN号时发生网络错误: {str(e)}"
+            self._log(error_msg)
+            return False, error_msg
 
     def upload_result_pass(self, sn_code, user_no):
         """调用2号接口上传结果过站"""
         if not self.api_ip:
             return False, "API接口IP未设置"
+
         # 动态生成完整URL
         execute_url = f"http://{self.api_ip}:{API_PORT}{EXECUTE_SN_PATH}"
-
         data = {"BarCode": sn_code, "UserNo": user_no}
         headers = {"Content-Type": "application/json"}
+
+        # 记录发送的JSON请求
+        self._log(f"发送过站请求 - URL: {execute_url}")
+        self._log(f"请求数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
         try:
             response = requests.post(execute_url, data=json.dumps(data), headers=headers)
             response.raise_for_status()
+
+            # 记录响应数据
+            self._log(f"过站响应状态码: {response.status_code}")
+            +6
+            self._log(f"响应数据: {json.dumps(response.json(), ensure_ascii=False, indent=2)}")
+
             result = response.json()
-            if result.get("code") == 0:
+            if result.get("code") == "0":
                 return True, result.get("message", "过站成功")
             else:
                 return False, result.get("message", "过站失败")
         except requests.exceptions.RequestException as e:
-            return False, f"上传过站结果时发生网络错误: {str(e)}"
+            error_msg = f"上传过站结果时发生网络错误: {str(e)}"
+            self._log(error_msg)
+            return False, error_msg
+
+    # 其他方法保持不变...
 
     def perform_check_pass(self, sn_code, user_no):
         """仅使用API接口执行检号过站操作（不涉及串口）"""
