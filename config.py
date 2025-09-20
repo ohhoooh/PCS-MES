@@ -1,7 +1,7 @@
 """系统配置参数"""
 # 网络配置
-INTRANET_TEST_IP = "10.10.30.82"  # 服务器IP
-INTRANET_TEST_PORT = 80           # 服务器端口
+INTRANET_TEST_IP = "10.10.30.247"  # 服务器IP
+INTRANET_TEST_PORT = 9900           # 服务器端口
 
 # 串口配置
 DEFAULT_BAUDRATE = "9600"         # 默认波特率
