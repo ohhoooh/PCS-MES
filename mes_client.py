@@ -75,7 +75,6 @@ class MESClient:
 
             # 记录响应数据
             self._log(f"过站响应状态码: {response.status_code}")
-            +6
             self._log(f"响应数据: {json.dumps(response.json(), ensure_ascii=False, indent=2)}")
 
             result = response.json()
