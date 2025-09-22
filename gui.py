@@ -130,7 +130,15 @@ class MESQuerySystem:
         # 网络状态显示
         ttk.Label(frame_network, text="网络连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.api_ip_entry = ttk.Entry(frame_network, textvariable=self.api_ip_var, width=15)
-        self.api_ip_entry.grid(row=0, column=8, padx=5, pady=5, sticky="w")
+        self.api_ip_entry.grid(row=0, column=6, padx=5, pady=5, sticky="w")
+
+        # 手动检测按钮
+        self.check_network_btn = ttk.Button(
+            frame_network,
+            text="网络检测",
+            command=self.trigger_manual_detection
+        )
+        self.check_network_btn.grid(row=0, column=5, padx=10, pady=5,sticky="w")
 
         # 设置API IP按钮
         self.set_api_ip_btn = ttk.Button(
@@ -138,7 +146,9 @@ class MESQuerySystem:
             text="设置API IP",
             command=self.set_api_ip
         )
-        self.set_api_ip_btn.grid(row=0, column=9, padx=10, pady=5)
+        self.set_api_ip_btn.grid(row=0, column=7, padx=10, pady=5)
+
+        #网络状态显示
         self.network_status_label = ttk.Label(
             frame_network,
             textvariable=self.network_status_var,
@@ -154,14 +164,6 @@ class MESQuerySystem:
             textvariable=self.local_ip_var,
             font=("Arial", 10)
         ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
-
-        # 手动检测按钮
-        self.check_network_btn = ttk.Button(
-            frame_network,
-            text="网络检测",
-            command=self.trigger_manual_detection
-        )
-        self.check_network_btn.grid(row=0, column=6, padx=10, pady=5)
 
     def get_local_ip_addresses(self):
         """获取Windows系统下的本机IP地址（适配Windows环境）"""
@@ -347,6 +349,7 @@ class MESQuerySystem:
                                                                                                         padx=5, pady=5,
                                                                                                         sticky="w")
 
+    # 在create_log_frame方法中添加日志操作按钮
     def create_log_frame(self):
         """创建日志显示区域"""
         frame_log = ttk.LabelFrame(self.root, text="系统日志")
@@ -364,6 +367,17 @@ class MESQuerySystem:
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.log_text['yscrollcommand'] = scrollbar.set
 
+        # 日志操作按钮
+        log_buttons_frame = ttk.Frame(frame_log)
+        log_buttons_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="e")
+
+        self.clear_log_btn = ttk.Button(log_buttons_frame, text="清除日志", command=self.clear_log)
+        self.clear_log_btn.pack(side=tk.LEFT, padx=5)
+
+        self.save_log_btn = ttk.Button(log_buttons_frame, text="保存日志", command=self.save_log)
+        self.save_log_btn.pack(side=tk.LEFT, padx=5)
+
+    # 在create_details_frame方法中添加记录操作按钮
     def create_details_frame(self):
         """创建详情显示区域"""
         frame_details = ttk.LabelFrame(self.root, text="检测记录详情")
@@ -380,6 +394,91 @@ class MESQuerySystem:
         scrollbar = ttk.Scrollbar(frame_details, command=self.details_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.details_text['yscrollcommand'] = scrollbar.set
+
+        # 记录操作按钮
+        details_buttons_frame = ttk.Frame(frame_details)
+        details_buttons_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="e")
+
+        self.clear_details_btn = ttk.Button(details_buttons_frame, text="清除记录", command=self.clear_details)
+        self.clear_details_btn.pack(side=tk.LEFT, padx=5)
+
+        self.save_details_btn = ttk.Button(details_buttons_frame, text="保存记录", command=self.save_details)
+        self.save_details_btn.pack(side=tk.LEFT, padx=5)
+
+    # 添加日志和记录操作的实现方法
+    def clear_log(self):
+        """清除日志内容"""
+        if not self.log_text:
+            return
+
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.config(state=tk.DISABLED)
+
+    def save_log(self):
+        """保存日志内容到文件"""
+        if not self.log_text or not self.log_text.get(1.0, tk.END).strip():
+            messagebox.showinfo("提示", "日志为空，无需保存")
+            return
+
+        from tkinter import filedialog
+        import os
+
+        # 获取当前时间作为默认文件名
+        default_filename = f"log_{time.strftime('%Y%m%d_%H%M%S')}.txt"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")],
+            initialfile=default_filename
+        )
+
+        if file_path:
+            try:
+                log_content = self.log_text.get(1.0, tk.END)
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(log_content)
+                self.add_log(f"日志已保存至: {file_path}")
+                messagebox.showinfo("成功", f"日志已成功保存至:\n{file_path}")
+            except Exception as e:
+                self.add_log(f"保存日志失败: {str(e)}")
+                messagebox.showerror("错误", f"保存日志失败:\n{str(e)}")
+
+    def clear_details(self):
+        """清除记录详情内容"""
+        if not self.details_text:
+            return
+
+        self.details_text.config(state=tk.NORMAL)
+        self.details_text.delete(1.0, tk.END)
+        self.details_text.config(state=tk.DISABLED)
+
+    def save_details(self):
+        """保存记录详情到文件"""
+        if not self.details_text or not self.details_text.get(1.0, tk.END).strip():
+            messagebox.showinfo("提示", "记录详情为空，无需保存")
+            return
+
+        from tkinter import filedialog
+        import os
+
+        # 获取当前时间作为默认文件名
+        default_filename = f"details_{time.strftime('%Y%m%d_%H%M%S')}.txt"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt"), ("所有文件", "*.*")],
+            initialfile=default_filename
+        )
+
+        if file_path:
+            try:
+                details_content = self.details_text.get(1.0, tk.END)
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(details_content)
+                self.add_log(f"记录详情已保存至: {file_path}")
+                messagebox.showinfo("成功", f"记录详情已成功保存至:\n{file_path}")
+            except Exception as e:
+                self.add_log(f"保存记录详情失败: {str(e)}")
+                messagebox.showerror("错误", f"保存记录详情失败:\n{str(e)}")
 
     def refresh_ports(self):
         """刷新可用串口列表"""
@@ -474,57 +573,11 @@ class MESQuerySystem:
             self.add_log(f"保存API接口IP失败: {api_ip}")
             messagebox.showwarning("警告", f"保存API接口IP失败，请检查文件权限")
 
-    def create_network_frame(self):
-        """创建增强的网络状态显示区域（Windows环境）"""
-        frame_network = ttk.LabelFrame(self.root, text="网络状态 (Windows)")
-        frame_network.grid(row=1, column=0, padx=10, pady=5, sticky="we")
-        frame_network.grid_columnconfigure(5, weight=1)  # 让最后一列自适应宽度
-
-        # 添加API接口IP输入框
-        ttk.Label(frame_network, text="API接口IP：").grid(row=0, column=7, padx=5, pady=5, sticky="e")
-        self.api_ip_var = tk.StringVar(value=INTRANET_TEST_IP)  # 使用默认IP
-        self.api_ip_entry = ttk.Entry(frame_network, textvariable=self.api_ip_var, width=15)
-        self.api_ip_entry.grid(row=0, column=8, padx=5, pady=5, sticky="w")
-
-        # 设置API IP按钮
-        self.set_api_ip_btn = ttk.Button(
-            frame_network,
-            text="设置API IP",
-            command=self.set_api_ip
-        )
-        self.set_api_ip_btn.grid(row=0, column=9, padx=10, pady=5)
-
-        # 网络状态显示
-        ttk.Label(frame_network, text="网络连接状态：").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.network_status_label = ttk.Label(
-            frame_network,
-            textvariable=self.network_status_var,
-            font=("Arial", 10, "bold"),
-            foreground="orange"  # 初始为橙色
-        )
-        self.network_status_label.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-
-        # 本地IP地址显示
-        ttk.Label(frame_network, text="本地IP地址：").grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        ttk.Label(
-            frame_network,
-            textvariable=self.local_ip_var,
-            font=("Arial", 10)
-        ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
-
-        # 手动检测按钮
-        self.check_network_btn = ttk.Button(
-            frame_network,
-            text="网络检测",
-            command=self.trigger_manual_detection
-        )
-        self.check_network_btn.grid(row=0, column=6, padx=10, pady=5)
-
     # 在gui.py中修改perform_check_pass方法
     def perform_check_pass(self):
         """执行检号过站操作（仅API接口，不使用串口）"""
         sn_code = self.sn_var.get().strip()
-        user_no = "1001"  # 实际应用中应从员工登录信息或输入框获取
+        user_no = "1001"
 
         # 验证SN码
         if not sn_code:
