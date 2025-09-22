@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
-import platform
 import socket
 from config import *
 
