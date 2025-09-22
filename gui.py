@@ -123,7 +123,7 @@ class MESQuerySystem:
         self.refresh_btn.grid(row=0, column=6, padx=5, pady=5)
 
     def create_network_frame(self):
-        """创建增强的网络状态显示区域（Windows环境）"""
+        """创建网络状态显示区域（Windows环境）"""
         frame_network = ttk.LabelFrame(self.root, text="网络状态 (Windows)")
         frame_network.grid(row=1, column=0, padx=10, pady=5, sticky="we")
         frame_network.grid_columnconfigure(5, weight=1)
@@ -155,10 +155,6 @@ class MESQuerySystem:
             textvariable=self.local_ip_var,
             font=("Arial", 10)
         ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
-
-        # 检测控制
-        ttk.Label(frame_network, text="检测间隔：").grid(row=0, column=4, padx=5, pady=5, sticky="e")
-        ttk.Label(frame_network, text=f"{self.detection_interval}秒").grid(row=0, column=5, padx=5, pady=5, sticky="w")
 
         # 手动检测按钮
         self.check_network_btn = ttk.Button(
@@ -516,10 +512,6 @@ class MESQuerySystem:
             textvariable=self.local_ip_var,
             font=("Arial", 10)
         ).grid(row=0, column=3, padx=5, pady=5, sticky="w")
-
-        # 检测控制
-        ttk.Label(frame_network, text="检测间隔：").grid(row=0, column=4, padx=5, pady=5, sticky="e")
-        ttk.Label(frame_network, text=f"{self.detection_interval}秒").grid(row=0, column=5, padx=5, pady=5, sticky="w")
 
         # 手动检测按钮
         self.check_network_btn = ttk.Button(
