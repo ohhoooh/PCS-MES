@@ -232,7 +232,7 @@ class MESQuerySystem:
 
     def trigger_manual_detection(self):
         """手动触发一次网络检测"""
-        self.add_log("手动触发网络检测...")
+        self.add_log("正在进行网络检测...")
         # 禁用按钮防止重复点击
         self.check_network_btn.config(state=tk.DISABLED)
         # 在新线程中执行检测
